@@ -169,4 +169,39 @@ describe('The Notification API', () => {
       expect(notificationAPIInstance.notifications.length).toEqual(0);
     });
   });
+
+  describe('dismissAllNotifications', () => {
+    let api;
+
+    beforeEach(() => {
+      api = new NotificationAPI();
+    });
+
+    afterEach(() => {
+      api.dismissAllNotifications();
+    });
+
+    it('clears the active notification so later notifications can show', () => {
+      api.alert('Existing alert');
+      api.dismissAllNotifications();
+
+      const nextNotification = api.error('Next error');
+
+      expect(api.activeNotification).toBe(nextNotification);
+      expect(api.notifications).toEqual([nextNotification]);
+      expect(api.highest.severity).toEqual('error');
+    });
+
+    it('cancels a pending auto-dismiss timeout', () => {
+      api.info('Temporary info');
+      expect(api.activeTimeout).toBeDefined();
+
+      api.dismissAllNotifications();
+
+      expect(api.activeNotification).toBeUndefined();
+      expect(api.activeTimeout).toBeUndefined();
+      expect(api.notifications.length).toEqual(0);
+      expect(api.highest.severity).toEqual('info');
+    });
+  });
 });
