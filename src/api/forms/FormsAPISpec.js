@@ -153,5 +153,37 @@ describe('The Forms API', () => {
       expect(title).toBe(formStructure.title);
       document.querySelector('.js-cancel-button').click();
     });
+
+    it('rejects when the overlay close button is used', (done) => {
+      const formPromise = openmct.forms.showForm(formStructure);
+
+      document.querySelector('.c-overlay__close-button').click();
+
+      formPromise.then(
+        () => {
+          done.fail('expected showForm to reject');
+        },
+        () => {
+          expect(document.querySelector('.c-overlay')).toBeNull();
+          done();
+        }
+      );
+    });
+
+    it('rejects when the overlay is dismissed with Escape', (done) => {
+      const formPromise = openmct.forms.showForm(formStructure);
+
+      document.dispatchEvent(new KeyboardEvent('keyup', { key: 'Escape' }));
+
+      formPromise.then(
+        () => {
+          done.fail('expected showForm to reject');
+        },
+        () => {
+          expect(document.querySelector('.c-overlay')).toBeNull();
+          done();
+        }
+      );
+    });
   });
 });

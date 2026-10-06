@@ -102,16 +102,13 @@ export default class FormsAPI {
    */
   showForm(formStructure, { onChange } = {}) {
     let overlay;
+    let formView;
+    let dismissViaOverlay = false;
 
     const self = this;
 
     const overlayEl = document.createElement('div');
     overlayEl.classList.add('u-contents');
-
-    overlay = self.openmct.overlays.overlay({
-      element: overlayEl,
-      size: 'dialog'
-    });
 
     let formSave;
     let formCancel;
@@ -120,16 +117,38 @@ export default class FormsAPI {
       formCancel = reject;
     });
 
-    this.showCustomForm(formStructure, {
+    /**
+     * Overlay dismissal (close button, Escape, or backdrop) does not
+     * emit the form's cancel event. Reject the same way Cancel does.
+     * notifyAndDismiss() already removes the overlay, so this path must
+     * not dismiss it again.
+     */
+    function dismissFormFromOverlay() {
+      dismissViaOverlay = true;
+      formView.cancel();
+    }
+
+    overlay = self.openmct.overlays.overlay({
+      element: overlayEl,
+      size: 'dialog',
+      onDismiss: dismissFormFromOverlay
+    });
+
+    formView = this.showCustomForm(formStructure, {
       element: overlayEl,
       onChange
-    })
+    });
+
+    formView
       .then((response) => {
         overlay.dismiss();
         formSave(response);
       })
       .catch((response) => {
-        overlay.dismiss();
+        if (!dismissViaOverlay) {
+          overlay.dismiss();
+        }
+
         formCancel(response);
       });
 
@@ -155,11 +174,15 @@ export default class FormsAPI {
     const changes = {};
     let formSave;
     let formCancel;
+    let isDestroyed = false;
 
     const promise = new Promise((resolve, reject) => {
       formSave = onFormAction(resolve);
       formCancel = onFormAction(reject);
     });
+
+    // showForm calls this when the overlay closes without the Cancel button.
+    promise.cancel = formCancel;
 
     const { destroy } = mount(
       {
@@ -206,13 +229,26 @@ export default class FormsAPI {
     }
 
     /**
+     * Unmounts the form once. Save, Cancel, and overlay dismiss can
+     * each reach this path.
+     */
+    function destroyForm() {
+      if (isDestroyed) {
+        return;
+      }
+
+      isDestroyed = true;
+      destroy();
+    }
+
+    /**
      * Creates a form action handler
      * @param {() => void} callback - The callback to be called when the form action is triggered
      * @returns {(...args: any[]) => void} The form action handler
      */
     function onFormAction(callback) {
       return () => {
-        destroy();
+        destroyForm();
 
         if (callback) {
           callback(changes);
